@@ -1,177 +1,161 @@
-'use client'
-
+'use client';
 import { useState } from 'react'
-import { createAlert } from '@/app/actions/alertActions'
+import { supabase } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
-import { AlertTriangle, Flame, Zap, Droplet, HelpCircle, X, Send } from 'lucide-react'
+import { AlertTriangle, Heart, Zap, Thermometer, Droplets, Shield, Send } from 'lucide-react'
 
 interface KioscoAlertasProps {
   usuarioId: string | null
+  tutorId: string | null
   onClose: () => void
 }
 
 const tiposAlerta = [
   {
-    id: 'gas',
-    label: 'Fuga de Gas',
-    icon: Flame,
-    helper: 'Gas o tanque',
-    activeClass: 'border-red-500 bg-red-50 text-red-700 shadow-red-200/70',
-    iconClass: 'bg-red-100 text-red-600'
+    id: 'salud',
+    label: 'Salud',
+    helper: 'Me siento mal o necesito ayuda médica',
+    icon: Heart,
+    iconClass: 'bg-red-100 text-red-600',
+    activeClass: 'border-red-500 bg-red-50 text-red-700',
   },
   {
-    id: 'luz',
-    label: 'Problema de Luz',
+    id: 'electricidad',
+    label: 'Electricidad',
+    helper: 'Problemas con la luz o enchufes',
     icon: Zap,
-    helper: 'Corte o chispa',
-    activeClass: 'border-yellow-500 bg-yellow-50 text-yellow-700 shadow-yellow-200/70',
-    iconClass: 'bg-yellow-100 text-yellow-600'
+    iconClass: 'bg-yellow-100 text-yellow-600',
+    activeClass: 'border-yellow-500 bg-yellow-50 text-yellow-700',
+  },
+  {
+    id: 'temperatura',
+    label: 'Temperatura',
+    helper: 'Hace mucho frío o calor',
+    icon: Thermometer,
+    iconClass: 'bg-blue-100 text-blue-600',
+    activeClass: 'border-blue-500 bg-blue-50 text-blue-700',
   },
   {
     id: 'agua',
-    label: 'Problema de Agua',
-    icon: Droplet,
-    helper: 'Fuga o corte',
-    activeClass: 'border-blue-500 bg-blue-50 text-blue-700 shadow-blue-200/70',
-    iconClass: 'bg-blue-100 text-blue-600'
+    label: 'Agua',
+    helper: 'Problemas con el agua o tuberías',
+    icon: Droplets,
+    iconClass: 'bg-cyan-100 text-cyan-600',
+    activeClass: 'border-cyan-500 bg-cyan-50 text-cyan-700',
   },
   {
-    id: 'ayuda',
-    label: 'Necesito Ayuda',
-    icon: HelpCircle,
-    helper: 'Asistencia personal',
-    activeClass: 'border-purple-500 bg-purple-50 text-purple-700 shadow-purple-200/70',
-    iconClass: 'bg-purple-100 text-purple-600'
+    id: 'seguridad',
+    label: 'Seguridad',
+    helper: 'Me siento inseguro o hay peligro',
+    icon: Shield,
+    iconClass: 'bg-purple-100 text-purple-600',
+    activeClass: 'border-purple-500 bg-purple-50 text-purple-700',
   },
   {
     id: 'otro',
-    label: 'Otra Emergencia',
+    label: 'Otro',
+    helper: 'Otro tipo de emergencia',
     icon: AlertTriangle,
-    helper: 'Situacion urgente',
-    activeClass: 'border-orange-500 bg-orange-50 text-orange-700 shadow-orange-200/70',
-    iconClass: 'bg-orange-100 text-orange-600'
-  }
+    iconClass: 'bg-gray-100 text-gray-600',
+    activeClass: 'border-gray-500 bg-gray-50 text-gray-700',
+  },
 ]
 
-export default function KioscoAlertas({ usuarioId, onClose }: KioscoAlertasProps) {
-  const [tipoSeleccionado, setTipoSeleccionado] = useState<string>('')
+export default function KioscoAlertas({ usuarioId, tutorId, onClose }: KioscoAlertasProps) {
+  const [tipoSeleccionado, setTipoSeleccionado] = useState<string | null>(null)
   const [descripcion, setDescripcion] = useState('')
   const [enviando, setEnviando] = useState(false)
 
   const enviarAlerta = async () => {
-    // ✅ VALIDACIÓN CLAVE (soluciona tu error)
-    if (!tipoSeleccionado || !usuarioId) {
+    if (!tipoSeleccionado || !usuarioId || !tutorId) {
       toast.error('Falta información para enviar la alerta')
       return
     }
 
-    try {
-      setEnviando(true)
-
-      const result = await createAlert({
-        usuarioId, // ✅ ahora TypeScript sabe que es string
+    setEnviando(true)
+    const { error } = await supabase
+      .from('alertas')
+      .insert({
         tipo: tipoSeleccionado,
         descripcion: descripcion.trim() || `Alerta de ${tipoSeleccionado}`,
+        usuario_id: usuarioId,
+        para_usuario_id: tutorId,
+        estado: 'activa'
       })
 
-      if (result?.success) {
-        toast.success('Alerta enviada. Tu tutor será notificado')
-        setTipoSeleccionado('')
-        setDescripcion('')
-        setTimeout(() => onClose(), 1500)
-      } else {
-        toast.error(result?.message || 'Error al enviar alerta')
-      }
-
-    } catch (error) {
-      console.error('Error inesperado:', error)
-      toast.error('Ocurrió un error inesperado')
-    } finally {
-      setEnviando(false)
+    if (!error) {
+      toast.success('Alerta enviada a tu tutor')
+      setTipoSeleccionado(null)
+      setDescripcion('')
+      setTimeout(() => onClose(), 1500)
+    } else {
+      console.error('Error al enviar alerta:', error)
+      toast.error('Error al enviar alerta')
     }
+    setEnviando(false)
   }
 
-  // ✅ evita render si no hay usuario
-  if (!usuarioId) return null
+  if (!usuarioId) {
+    return null
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:p-4">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-[30px] border border-white/40 bg-white shadow-[0_35px_90px_-35px_rgba(15,23,42,0.75)]">
-        
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-red-50 via-white to-orange-50 px-4 py-4 sm:px-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-100 text-red-600">
-              <AlertTriangle className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Enviar Alerta</h2>
-              <p className="text-sm text-slate-500">Tu tutor la recibirá al instante.</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 transition hover:bg-slate-100">
-            <X className="w-6 h-6" />
-          </button>
+    <div className="space-y-4">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Enviar Alerta</h2>
+        <p className="text-gray-600">Tu tutor la recibirá al instante</p>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <p className="text-center text-sm leading-6 text-gray-600 mb-6">
+          ¿Qué está pasando? Selecciona el tipo de emergencia y agrega un detalle si quieres.
+        </p>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-6">
+          {tiposAlerta.map((tipo) => (
+            <button
+              key={tipo.id}
+              onClick={() => setTipoSeleccionado(tipo.id)}
+              className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                tipoSeleccionado === tipo.id
+                  ? `${tipo.activeClass} shadow-lg`
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl ${tipo.iconClass}`}>
+                <tipo.icon className="h-6 w-6" />
+              </div>
+              <p className="text-base font-bold">{tipo.label}</p>
+              <p className="mt-1 text-sm opacity-80">{tipo.helper}</p>
+            </button>
+          ))}
         </div>
 
-        {/* Body */}
-        <div className="space-y-5 p-4 sm:p-5">
-          <p className="text-center text-sm leading-6 text-slate-600 sm:text-base">
-            ¿Qué está pasando? Selecciona el tipo de emergencia y agrega un detalle si quieres.
-          </p>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {tiposAlerta.map((tipo) => (
-              <button
-                key={tipo.id}
-                onClick={() => setTipoSeleccionado(tipo.id)}
-                className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                  tipoSeleccionado === tipo.id
-                    ? `${tipo.activeClass} shadow-lg`
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl ${tipo.iconClass}`}>
-                  <tipo.icon className="h-6 w-6" />
-                </div>
-                <p className="text-base font-bold">{tipo.label}</p>
-                <p className="mt-1 text-sm opacity-80">{tipo.helper}</p>
-              </button>
-            ))}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Descripción opcional
-            </label>
-            <textarea
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Ej: El tanque de gas hace ruido o no hay luz en toda la casa."
-              className="w-full resize-none rounded-2xl border border-slate-300 p-3 text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-              rows={4}
-            />
-          </div>
-
-          <button
-            onClick={enviarAlerta}
-            disabled={!tipoSeleccionado || enviando}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 py-4 font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {enviando ? (
-              'Enviando...'
-            ) : (
-              <>
-                <Send className="w-5 h-5" />
-                Enviar Alerta
-              </>
-            )}
-          </button>
-
-          <p className="text-center text-xs text-slate-500">
-            Tu tutor recibirá una notificación inmediata
-          </p>
+        <div className="mb-6">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Descripción opcional
+          </label>
+          <textarea
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            placeholder="Ej: El tanque de gas hace ruido o no hay luz en toda la casa."
+            className="w-full resize-none rounded-2xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-red-500 text-black"
+            rows={4}
+          />
         </div>
+
+        <button
+          onClick={enviarAlerta}
+          disabled={enviando || !tipoSeleccionado}
+          className="w-full rounded-2xl bg-gradient-to-r from-red-500 to-orange-600 px-6 py-3 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          {enviando ? 'Enviando...' : (
+            <>
+              <Send className="w-5 h-5 inline mr-2" />
+              Enviar Alerta
+            </>
+          )}
+        </button>
       </div>
     </div>
   )
